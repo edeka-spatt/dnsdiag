@@ -34,6 +34,7 @@ import socket
 import sys
 import time
 import httpx
+import logging
 from statistics import stdev
 
 import dns.flags
@@ -47,6 +48,7 @@ __author__ = 'Babak Farrokhi (babak@farrokhi.net)'
 __license__ = 'BSD'
 __progname__ = os.path.basename(sys.argv[0])
 shutdown = False
+
 
 
 def usage():
@@ -250,13 +252,23 @@ def main():
     response_time = []
     i = 0
 
+    # Logging
+    current_datetime = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s',
+                        encoding='utf-8',
+                        level=logging.INFO,
+                        handlers=[
+                            logging.FileHandler(str(current_datetime)+'_'+dnsserver+'_'+qname+'.log'),
+                            logging.StreamHandler()
+                        ])
+
     # validate RR type
     if not util.dns.valid_rdatatype(rdatatype):
         print_stderr('Error: Invalid record type: %s ' % rdatatype, True)
 
-    print("%s DNS: %s:%d, hostname: %s, proto: %s, class: %s, type: %s, flags: [%s]" %
+    logging.info("%s DNS: %s:%d, hostname: %s, proto: %s, class: %s, type: %s, flags: [%s]" %
           (__progname__, dnsserver, dst_port, qname, proto_to_text(proto), dns.rdataclass.to_text(rdata_class),
-           rdatatype, dns.flags.to_text(request_flags)), flush=True)
+           rdatatype, dns.flags.to_text(request_flags)))
 
     while not shutdown:
 
@@ -313,10 +325,10 @@ def main():
             sys.exit(1)
         except (httpx.ConnectTimeout, dns.exception.Timeout):
             if not quiet:
-                print("Request timeout", flush=True)
+                logging.warning("Request timeout")
         except httpx.ReadTimeout:
             if not quiet:
-                print("Read timeout", flush=True)
+                logging.warning("Read timeout")
         except PermissionError:
             if not quiet:
                 print_stderr("Permission denied", True)
@@ -369,11 +381,11 @@ def main():
                             extras += " [RDATA: %s]" % ans[0]
                             break
 
-                print("%-3d bytes from %s: seq=%-3d time=%-7.3f ms %s" % (
-                    len(answers.to_wire()), dnsserver, i, elapsed, extras), flush=True)
+                logging.info("%-3d bytes from %s: seq=%-3d time=%-7.3f ms %s" % (
+                    len(answers.to_wire()), dnsserver, i, elapsed, extras))
 
             if verbose:
-                print(answers.to_text(), flush=True)
+                logging.debug(answers.to_text())
 
             time_to_next = (stime + interval) - etime
             if time_to_next > 0:
@@ -397,10 +409,9 @@ def main():
         r_avg = 0
         r_stddev = 0
 
-    print('\n--- %s dnsping statistics ---' % dnsserver, flush=True)
-    print('%d requests transmitted, %d responses received, %.0f%% lost' % (r_sent, r_received, r_lost_percent),
-          flush=True)
-    print('min=%.3f ms, avg=%.3f ms, max=%.3f ms, stddev=%.3f ms' % (r_min, r_avg, r_max, r_stddev), flush=True)
+    logging.info('--- %s dnsping statistics ---' % dnsserver)
+    logging.info('%d requests transmitted, %d responses received, %.0f%% lost' % (r_sent, r_received, r_lost_percent))
+    logging.info('min=%.3f ms, avg=%.3f ms, max=%.3f ms, stddev=%.3f ms' % (r_min, r_avg, r_max, r_stddev))
 
 
 if __name__ == '__main__':
